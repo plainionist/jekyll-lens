@@ -21,9 +21,9 @@ export function getWebviewHtml(): string {
     .field {
       display: grid;
       grid-template-columns: 140px 1fr;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     label {
@@ -35,7 +35,9 @@ export function getWebviewHtml(): string {
     input {
       box-sizing: border-box;
       width: 100%;
-      padding: 8px;
+      padding: 5px 8px;
+      min-height: 28px;
+      font-size: 12px;
       color: var(--vscode-input-foreground);
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
@@ -48,15 +50,15 @@ export function getWebviewHtml(): string {
     }
 
     .results {
-      margin-top: 20px;
-      padding-top: 12px;
+      margin-top: 14px;
+      padding-top: 10px;
       border-top: 1px solid var(--vscode-panel-border);
     }
 
     .results-meta {
       color: var(--vscode-descriptionForeground);
-      margin-bottom: 10px;
-      font-size: 0.95em;
+      margin-bottom: 8px;
+      font-size: 0.9em;
     }
 
     #resultsList {
@@ -74,22 +76,22 @@ export function getWebviewHtml(): string {
       box-sizing: border-box;
       display: block;
       width: 100%;
-      border: 1px solid var(--vscode-input-border);
+      border: 1px solid #2f5fb3;
       border-radius: 6px;
       padding: 10px;
       cursor: pointer;
       background: var(--vscode-editorWidget-background);
       color: var(--vscode-foreground);
-      box-shadow: 0 0 0 1px var(--vscode-contrastBorder, transparent);
+      box-shadow: 0 0 0 1px rgba(47, 95, 179, 0.2);
     }
 
     .result-button:hover {
       background: var(--vscode-list-hoverBackground);
-      border-color: var(--vscode-focusBorder);
+      border-color: #4d7fe0;
     }
 
     .result-button:focus {
-      outline: 1px solid var(--vscode-focusBorder);
+      outline: 1px solid #4d7fe0;
       outline-offset: 0;
     }
 
@@ -117,7 +119,8 @@ export function getWebviewHtml(): string {
     @media (max-width: 640px) {
       .field {
         grid-template-columns: 1fr;
-        gap: 4px;
+        gap: 3px;
+        margin-bottom: 7px;
       }
     }
   </style>
@@ -141,12 +144,11 @@ export function getWebviewHtml(): string {
     </div>
 
     <div class="field">
-      <label for="fileNamePattern">File Name Pattern</label>
-      <input id="fileNamePattern" type="text" />
+      <label for="filePathPattern">File Path Pattern</label>
+      <input id="filePathPattern" type="text" />
     </div>
 
     <section class="results">
-      <h2>Results</h2>
       <div id="resultsMeta" class="results-meta">Enter at least one filter to search.</div>
       <ul id="resultsList"></ul>
     </section>
@@ -154,7 +156,7 @@ export function getWebviewHtml(): string {
 
   <script>
     const vscodeApi = acquireVsCodeApi();
-    const fileNamePatternInput = document.getElementById('fileNamePattern');
+    const filePathPatternInput = document.getElementById('filePathPattern');
     const titleInput = document.getElementById('title');
     const tagsInput = document.getElementById('tags');
     const fullTextInput = document.getElementById('fullText');
@@ -172,7 +174,7 @@ export function getWebviewHtml(): string {
       renderResults(message.payload ?? [], getFilters());
     });
 
-    [fileNamePatternInput, titleInput, tagsInput, fullTextInput].forEach((inputElement) => {
+    [filePathPatternInput, titleInput, tagsInput, fullTextInput].forEach((inputElement) => {
       inputElement?.addEventListener('input', () => {
         scheduleSearch();
       });
@@ -208,7 +210,7 @@ export function getWebviewHtml(): string {
 
     function getFilters() {
       return {
-        fileNamePattern: fileNamePatternInput?.value ?? '',
+        filePathPattern: filePathPatternInput?.value ?? '',
         title: titleInput?.value ?? '',
         tags: tagsInput?.value ?? '',
         fullText: fullTextInput?.value ?? ''
@@ -217,7 +219,7 @@ export function getWebviewHtml(): string {
 
     function hasAnyFilter(filters) {
       return Boolean(
-        filters.fileNamePattern.trim() ||
+        filters.filePathPattern.trim() ||
         filters.title.trim() ||
         filters.tags.trim() ||
         filters.fullText.trim()
@@ -270,11 +272,11 @@ export function getWebviewHtml(): string {
 
         const name = document.createElement('div');
         name.className = 'result-name';
-        name.innerHTML = highlightText(result.fileName, filters.fileNamePattern);
+        name.innerHTML = escapeHtml(result.fileName);
 
         const path = document.createElement('div');
         path.className = 'result-path';
-        path.innerHTML = escapeHtml(result.filePath);
+        path.innerHTML = highlightText(result.filePath, filters.filePathPattern);
 
         const metadata = document.createElement('div');
         metadata.className = 'result-path';
