@@ -5,8 +5,16 @@ export type SearchFilters = {
   fullText: string;
 };
 
+export type NormalizedSearchFilters = {
+  filePathPattern: string;
+  title: string;
+  tags: string;
+  fullText: string;
+};
+
 export type SearchRequestMessage = {
   type: 'search';
+  requestId: number;
   payload?: Partial<SearchFilters>;
 };
 
@@ -31,6 +39,7 @@ export type SearchResult = {
 
 export type SearchResultsMessage = {
   type: 'searchResults';
+  requestId: number;
   payload: SearchResult[];
 };
 

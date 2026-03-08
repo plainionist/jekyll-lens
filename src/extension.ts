@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import { searchMarkdownFiles } from './search';
-import { SearchFilters, SearchResultsMessage, WebviewRequestMessage } from './types';
+import {
+  SearchFilters,
+  SearchRequestMessage,
+  SearchResultsMessage,
+  WebviewRequestMessage
+} from './types';
 import { getWebviewHtml } from './webview/html';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -16,13 +21,22 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     panel.webview.html = getWebviewHtml();
+    let latestRequestId = 0;
 
-    const messageListener = panel.webview.onDidReceiveMessage(async (message: WebviewRequestMessage) => {
-      if (message.type === 'search') {
+    const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+      if (isSearchRequestMessage(message)) {
+        latestRequestId = Math.max(latestRequestId, message.requestId);
+        const requestId = message.requestId;
         const filters = normalizeFilters(message.payload);
         const results = await searchMarkdownFiles(filters);
+
+        if (requestId !== latestRequestId) {
+          return;
+        }
+
         const response: SearchResultsMessage = {
           type: 'searchResults',
+          requestId,
           payload: results
         };
 
@@ -30,7 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      if (message.type === 'openFile') {
+      if (isOpenFileRequestMessage(message)) {
         await openResultFile(message.payload?.filePath, message.payload?.fileUri);
       }
     });
@@ -39,6 +53,22 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   context.subscriptions.push(disposable);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isSearchRequestMessage(message: unknown): message is SearchRequestMessage {
+  if (!isObject(message)) {
+    return false;
+  }
+
+  return message.type === 'search' && typeof message.requestId === 'number';
+}
+
+function isOpenFileRequestMessage(message: unknown): message is Extract<WebviewRequestMessage, { type: 'openFile' }> {
+  return isObject(message) && message.type === 'openFile';
 }
 
 function normalizeFilters(payload?: Partial<SearchFilters>): SearchFilters {

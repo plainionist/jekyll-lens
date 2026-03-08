@@ -1,84 +1,29 @@
 import * as vscode from 'vscode';
 import { parseFrontMatter } from './parsing/frontMatter';
-import { SearchFilters, SearchResult } from './types';
+import { NormalizedSearchFilters, SearchFilters, SearchResult } from './types';
+
+const MAX_CONCURRENT_FILE_READS = 8;
+
+const SEARCH_WEIGHTS = {
+  title: 40,
+  tags: 30,
+  filePathPattern: 20,
+  fullText: 10
+} as const;
 
 export async function searchMarkdownFiles(filters: SearchFilters): Promise<SearchResult[]> {
-  const filePathPatternLower = filters.filePathPattern.toLowerCase();
-  const titleLower = filters.title.toLowerCase();
-  const tagsLower = filters.tags.toLowerCase();
-  const fullTextLower = filters.fullText.toLowerCase();
-  const requiresMarkdownFilters = Boolean(titleLower || tagsLower || fullTextLower);
+  const normalizedFilters = normalizeFilters(filters);
 
-  if (!filePathPatternLower && !titleLower && !tagsLower && !fullTextLower) {
+  if (!hasAnyFilter(normalizedFilters)) {
     return [];
   }
 
-  const candidateFiles = requiresMarkdownFilters
-    ? await vscode.workspace.findFiles('**/*.md', '**/node_modules/**')
-    : await vscode.workspace.findFiles('**/*', '**/node_modules/**');
-
-  const results: SearchResult[] = [];
-
-  for (const fileUri of candidateFiles) {
-    const relativePath = vscode.workspace.asRelativePath(fileUri, false);
-    const fileName = getFileName(fileUri);
-    const isMarkdown = isMarkdownFile(fileUri);
-
-    if (filePathPatternLower && !relativePath.toLowerCase().includes(filePathPatternLower)) {
-      continue;
-    }
-
-    if (requiresMarkdownFilters && !isMarkdown) {
-      continue;
-    }
-
-    if (!isMarkdown) {
-      results.push({
-        filePath: relativePath,
-        fileUri: fileUri.toString(),
-        fileName,
-        title: '',
-        tags: '',
-        snippet: 'File path match'
-      });
-      continue;
-    }
-
-    const bytes = await vscode.workspace.fs.readFile(fileUri);
-    const content = new TextDecoder('utf-8').decode(bytes);
-    const parsed = parseFrontMatter(content);
-
-    if (titleLower && !parsed.title.toLowerCase().includes(titleLower)) {
-      continue;
-    }
-
-    if (tagsLower && !parsed.tags.toLowerCase().includes(tagsLower)) {
-      continue;
-    }
-
-    const fullTextMatchIndex = fullTextLower ? content.toLowerCase().indexOf(fullTextLower) : -1;
-
-    if (fullTextLower && fullTextMatchIndex === -1) {
-      continue;
-    }
-
-    const snippet = fullTextLower && fullTextMatchIndex >= 0
-      ? createMatchSnippet(content, fullTextMatchIndex)
-      : getFallbackSnippet(parsed.body);
-
-    results.push({
-      filePath: relativePath,
-      fileUri: fileUri.toString(),
-      fileName,
-      title: parsed.title,
-      tags: parsed.tags,
-      snippet
-    });
-  }
+  const candidateFiles = await findCandidateFiles(normalizedFilters);
+  const results = await collectSearchResults(candidateFiles, normalizedFilters);
 
   results.sort((a, b) => {
-    const scoreA = scoreResult(a, filters);
-    const scoreB = scoreResult(b, filters);
+    const scoreA = scoreResult(a, normalizedFilters);
+    const scoreB = scoreResult(b, normalizedFilters);
 
     if (scoreB !== scoreA) {
       return scoreB - scoreA;
@@ -90,23 +35,124 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
   return results;
 }
 
-function scoreResult(result: SearchResult, filters: SearchFilters): number {
+function normalizeFilters(filters: SearchFilters): NormalizedSearchFilters {
+  return {
+    filePathPattern: filters.filePathPattern.trim().toLowerCase(),
+    title: filters.title.trim().toLowerCase(),
+    tags: filters.tags.trim().toLowerCase(),
+    fullText: filters.fullText.trim().toLowerCase()
+  };
+}
+
+function hasAnyFilter(filters: NormalizedSearchFilters): boolean {
+  return Boolean(filters.filePathPattern || filters.title || filters.tags || filters.fullText);
+}
+
+function requiresMarkdownFilters(filters: NormalizedSearchFilters): boolean {
+  return Boolean(filters.title || filters.tags || filters.fullText);
+}
+
+async function findCandidateFiles(filters: NormalizedSearchFilters): Promise<vscode.Uri[]> {
+  if (requiresMarkdownFilters(filters)) {
+    return vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+  }
+
+  return vscode.workspace.findFiles('**/*', '**/node_modules/**');
+}
+
+async function collectSearchResults(
+  candidateFiles: vscode.Uri[],
+  filters: NormalizedSearchFilters
+): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+
+  for (let i = 0; i < candidateFiles.length; i += MAX_CONCURRENT_FILE_READS) {
+    const batch = candidateFiles.slice(i, i + MAX_CONCURRENT_FILE_READS);
+    const batchResults = await Promise.all(batch.map(async (fileUri) => evaluateCandidate(fileUri, filters)));
+
+    for (const result of batchResults) {
+      if (result) {
+        results.push(result);
+      }
+    }
+  }
+
+  return results;
+}
+
+async function evaluateCandidate(fileUri: vscode.Uri, filters: NormalizedSearchFilters): Promise<SearchResult | undefined> {
+  const relativePath = vscode.workspace.asRelativePath(fileUri, false);
+  const fileName = getFileName(fileUri);
+  const markdown = isMarkdownFile(fileUri);
+
+  if (filters.filePathPattern && !relativePath.toLowerCase().includes(filters.filePathPattern)) {
+    return undefined;
+  }
+
+  if (requiresMarkdownFilters(filters) && !markdown) {
+    return undefined;
+  }
+
+  if (!markdown) {
+    return {
+      filePath: relativePath,
+      fileUri: fileUri.toString(),
+      fileName,
+      title: '',
+      tags: '',
+      snippet: 'File path match'
+    };
+  }
+
+  const bytes = await vscode.workspace.fs.readFile(fileUri);
+  const content = new TextDecoder('utf-8').decode(bytes);
+  const parsed = parseFrontMatter(content);
+
+  if (filters.title && !parsed.title.toLowerCase().includes(filters.title)) {
+    return undefined;
+  }
+
+  if (filters.tags && !parsed.tags.toLowerCase().includes(filters.tags)) {
+    return undefined;
+  }
+
+  const fullTextMatchIndex = filters.fullText ? content.toLowerCase().indexOf(filters.fullText) : -1;
+
+  if (filters.fullText && fullTextMatchIndex === -1) {
+    return undefined;
+  }
+
+  const snippet = filters.fullText && fullTextMatchIndex >= 0
+    ? createMatchSnippet(content, fullTextMatchIndex)
+    : getFallbackSnippet(parsed.body);
+
+  return {
+    filePath: relativePath,
+    fileUri: fileUri.toString(),
+    fileName,
+    title: parsed.title,
+    tags: parsed.tags,
+    snippet
+  };
+}
+
+function scoreResult(result: SearchResult, filters: NormalizedSearchFilters): number {
   let score = 0;
 
-  if (filters.title && result.title.toLowerCase().includes(filters.title.toLowerCase())) {
-    score += 40;
+  if (filters.title && result.title.toLowerCase().includes(filters.title)) {
+    score += SEARCH_WEIGHTS.title;
   }
 
-  if (filters.tags && result.tags.toLowerCase().includes(filters.tags.toLowerCase())) {
-    score += 30;
+  if (filters.tags && result.tags.toLowerCase().includes(filters.tags)) {
+    score += SEARCH_WEIGHTS.tags;
   }
 
-  if (filters.filePathPattern && result.filePath.toLowerCase().includes(filters.filePathPattern.toLowerCase())) {
-    score += 20;
+  if (filters.filePathPattern && result.filePath.toLowerCase().includes(filters.filePathPattern)) {
+    score += SEARCH_WEIGHTS.filePathPattern;
   }
 
   if (filters.fullText) {
-    score += 10;
+    score += SEARCH_WEIGHTS.fullText;
   }
 
   return score;

@@ -155,6 +155,7 @@ export function getWebviewHtml(): string {
   </div>
 
   <script>
+    const SEARCH_DEBOUNCE_MS = 250;
     const vscodeApi = acquireVsCodeApi();
     const filePathPatternInput = document.getElementById('filePathPattern');
     const titleInput = document.getElementById('title');
@@ -163,6 +164,8 @@ export function getWebviewHtml(): string {
     const resultsMeta = document.getElementById('resultsMeta');
     const resultsList = document.getElementById('resultsList');
     let debounceHandle = undefined;
+    let nextRequestId = 1;
+    let latestRenderedRequestId = 0;
 
     window.addEventListener('message', (event) => {
       const message = event.data;
@@ -170,6 +173,12 @@ export function getWebviewHtml(): string {
       if (message?.type !== 'searchResults') {
         return;
       }
+
+      if (typeof message.requestId !== 'number' || message.requestId < latestRenderedRequestId) {
+        return;
+      }
+
+      latestRenderedRequestId = message.requestId;
 
       renderResults(message.payload ?? [], getFilters());
     });
@@ -187,7 +196,7 @@ export function getWebviewHtml(): string {
 
       debounceHandle = setTimeout(() => {
         runSearch();
-      }, 250);
+      }, SEARCH_DEBOUNCE_MS);
     }
 
     function runSearch() {
@@ -204,6 +213,7 @@ export function getWebviewHtml(): string {
 
       vscodeApi.postMessage({
         type: 'search',
+        requestId: nextRequestId++,
         payload: filters
       });
     }
