@@ -2,8 +2,12 @@
   "name": "jekyll-lens",
   "displayName": "Jekyll Lens",
   "description": "Context-aware search for Jekyll style documents in Visual Studio Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "plainionist",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plainionist/jekyll-lens.git"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
