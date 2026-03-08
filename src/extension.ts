@@ -7,7 +7,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const disposable = vscode.commands.registerCommand('jekyllLens.openSearch', () => {
     const panel = vscode.window.createWebviewPanel(
       'jekyllLens',
-      'Markdown Search',
+      'Jekyll Lens',
       vscode.ViewColumn.Active,
       {
         enableScripts: true

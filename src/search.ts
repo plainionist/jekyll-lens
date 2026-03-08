@@ -7,18 +7,39 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
   const titleLower = filters.title.toLowerCase();
   const tagsLower = filters.tags.toLowerCase();
   const fullTextLower = filters.fullText.toLowerCase();
+  const requiresMarkdownFilters = Boolean(titleLower || tagsLower || fullTextLower);
 
   if (!fileNamePatternLower && !titleLower && !tagsLower && !fullTextLower) {
     return [];
   }
 
-  const markdownFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+  const candidateFiles = requiresMarkdownFilters
+    ? await vscode.workspace.findFiles('**/*.md', '**/node_modules/**')
+    : await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+
   const results: SearchResult[] = [];
 
-  for (const fileUri of markdownFiles) {
+  for (const fileUri of candidateFiles) {
     const fileName = getFileName(fileUri);
+    const isMarkdown = isMarkdownFile(fileUri);
 
     if (fileNamePatternLower && !fileName.toLowerCase().includes(fileNamePatternLower)) {
+      continue;
+    }
+
+    if (requiresMarkdownFilters && !isMarkdown) {
+      continue;
+    }
+
+    if (!isMarkdown) {
+      results.push({
+        filePath: vscode.workspace.asRelativePath(fileUri, false),
+        fileUri: fileUri.toString(),
+        fileName,
+        title: '',
+        tags: '',
+        snippet: 'File name match'
+      });
       continue;
     }
 
@@ -94,6 +115,10 @@ function getFileName(fileUri: vscode.Uri): string {
   const normalizedPath = fileUri.path.replace(/\\/g, '/');
   const segments = normalizedPath.split('/');
   return segments[segments.length - 1] || normalizedPath;
+}
+
+function isMarkdownFile(fileUri: vscode.Uri): boolean {
+  return fileUri.path.toLowerCase().endsWith('.md');
 }
 
 function createMatchSnippet(content: string, matchIndex: number, matchLength: number): string {

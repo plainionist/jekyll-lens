@@ -13,7 +13,7 @@ export function getWebviewHtml(): string {
     }
 
     .container {
-      max-width: 760px;
+      width: 100%;
     }
 
     .field {

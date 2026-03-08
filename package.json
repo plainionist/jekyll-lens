@@ -2,7 +2,7 @@
   "name": "markdown-search-extension",
   "displayName": "Markdown Search",
   "description": "A minimal VS Code extension foundation for a future markdown search tool.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "plainionist",
   "engines": {
     "vscode": "^1.95.0"
