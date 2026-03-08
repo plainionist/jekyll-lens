@@ -34,17 +34,15 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
       continue;
     }
 
-    let snippet = getFallbackSnippet(parsed.body);
+    const fullTextMatchIndex = fullTextLower ? content.toLowerCase().indexOf(fullTextLower) : -1;
 
-    if (fullTextLower) {
-      const matchIndex = content.toLowerCase().indexOf(fullTextLower);
-
-      if (matchIndex === -1) {
-        continue;
-      }
-
-      snippet = createMatchSnippet(content, matchIndex, fullTextLower.length);
+    if (fullTextLower && fullTextMatchIndex === -1) {
+      continue;
     }
+
+    const snippet = fullTextLower && fullTextMatchIndex >= 0
+      ? createMatchSnippet(content, fullTextMatchIndex, fullTextLower.length)
+      : getFallbackSnippet(parsed.body);
 
     results.push({
       filePath: vscode.workspace.asRelativePath(fileUri, false),
@@ -56,7 +54,40 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
     });
   }
 
+  results.sort((a, b) => {
+    const scoreA = scoreResult(a, filters);
+    const scoreB = scoreResult(b, filters);
+
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA;
+    }
+
+    return a.filePath.localeCompare(b.filePath);
+  });
+
   return results;
+}
+
+function scoreResult(result: SearchResult, filters: SearchFilters): number {
+  let score = 0;
+
+  if (filters.title && result.title.toLowerCase().includes(filters.title.toLowerCase())) {
+    score += 40;
+  }
+
+  if (filters.tags && result.tags.toLowerCase().includes(filters.tags.toLowerCase())) {
+    score += 30;
+  }
+
+  if (filters.fileNamePattern && result.fileName.toLowerCase().includes(filters.fileNamePattern.toLowerCase())) {
+    score += 20;
+  }
+
+  if (filters.fullText) {
+    score += 10;
+  }
+
+  return score;
 }
 
 function getFileName(fileUri: vscode.Uri): string {
@@ -66,10 +97,10 @@ function getFileName(fileUri: vscode.Uri): string {
 }
 
 function createMatchSnippet(content: string, matchIndex: number, matchLength: number): string {
-  const radius = 50;
+  const radius = 60;
   const start = Math.max(0, matchIndex - radius);
   const end = Math.min(content.length, matchIndex + matchLength + radius);
-  const snippet = content.slice(start, end).replace(/\s+/g, ' ').trim();
+  const snippet = compactText(content.slice(start, end));
   const prefix = start > 0 ? '...' : '';
   const suffix = end < content.length ? '...' : '';
   return `${prefix}${snippet}${suffix}`;
@@ -82,8 +113,12 @@ function getFallbackSnippet(content: string): string {
     .find((line) => line.length > 0);
 
   if (firstNonEmptyLine) {
-    return firstNonEmptyLine.slice(0, 100);
+    return compactText(firstNonEmptyLine).slice(0, 100);
   }
 
-  return content.replace(/\s+/g, ' ').trim().slice(0, 100);
+  return compactText(content).slice(0, 100);
+}
+
+function compactText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }

@@ -13,7 +13,7 @@ export function getWebviewHtml(): string {
     }
 
     .container {
-      max-width: 640px;
+      max-width: 760px;
     }
 
     .field {
@@ -32,27 +32,25 @@ export function getWebviewHtml(): string {
       padding: 8px;
     }
 
-    button {
-      padding: 8px 14px;
-      margin-top: 4px;
-    }
-
     .results {
       margin-top: 20px;
       padding-top: 12px;
       border-top: 1px solid #ccc;
     }
 
+    .results-meta {
+      color: #666;
+      margin-bottom: 10px;
+      font-size: 0.95em;
+    }
+
     #resultsList {
       list-style: none;
       padding: 0;
-      margin: 8px 0 0;
+      margin: 0;
     }
 
     .result-item {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 0;
       margin-bottom: 10px;
     }
 
@@ -61,12 +59,16 @@ export function getWebviewHtml(): string {
       box-sizing: border-box;
       display: block;
       width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 6px;
       padding: 10px;
       cursor: pointer;
+      background: #fff;
     }
 
     .result-button:hover {
-      background: #f5f5f5;
+      background: #f7f7f7;
+      border-color: #bbb;
     }
 
     .result-name {
@@ -81,6 +83,11 @@ export function getWebviewHtml(): string {
 
     .result-snippet {
       margin-top: 8px;
+    }
+
+    mark {
+      background: #ffe28a;
+      padding: 0 1px;
     }
   </style>
 </head>
@@ -108,22 +115,22 @@ export function getWebviewHtml(): string {
       <input id="fullText" type="text" />
     </div>
 
-    <button id="searchButton" type="button">Search</button>
-
     <section class="results">
       <h2>Results</h2>
+      <div id="resultsMeta" class="results-meta">Enter at least one filter to search.</div>
       <ul id="resultsList"></ul>
     </section>
   </div>
 
   <script>
     const vscodeApi = acquireVsCodeApi();
-    const searchButton = document.getElementById('searchButton');
     const fileNamePatternInput = document.getElementById('fileNamePattern');
     const titleInput = document.getElementById('title');
     const tagsInput = document.getElementById('tags');
     const fullTextInput = document.getElementById('fullText');
+    const resultsMeta = document.getElementById('resultsMeta');
     const resultsList = document.getElementById('resultsList');
+    let debounceHandle = undefined;
 
     window.addEventListener('message', (event) => {
       const message = event.data;
@@ -132,41 +139,87 @@ export function getWebviewHtml(): string {
         return;
       }
 
-      renderResults(message.payload ?? []);
+      renderResults(message.payload ?? [], getFilters());
     });
 
-    searchButton?.addEventListener('click', () => {
-      const fileNamePattern = fileNamePatternInput?.value ?? '';
-      const title = titleInput?.value ?? '';
-      const tags = tagsInput?.value ?? '';
-      const fullText = fullTextInput?.value ?? '';
+    [fileNamePatternInput, titleInput, tagsInput, fullTextInput].forEach((inputElement) => {
+      inputElement?.addEventListener('input', () => {
+        scheduleSearch();
+      });
+    });
+
+    function scheduleSearch() {
+      if (debounceHandle) {
+        clearTimeout(debounceHandle);
+      }
+
+      debounceHandle = setTimeout(() => {
+        runSearch();
+      }, 250);
+    }
+
+    function runSearch() {
+      const filters = getFilters();
+
+      if (!hasAnyFilter(filters)) {
+        renderNoFilterState();
+        return;
+      }
+
+      if (resultsMeta) {
+        resultsMeta.textContent = 'Searching...';
+      }
 
       vscodeApi.postMessage({
         type: 'search',
-        payload: {
-          fileNamePattern,
-          title,
-          tags,
-          fullText
-        }
+        payload: filters
       });
+    }
 
-      console.log('Search clicked', { fileNamePattern, title, tags, fullText });
-    });
+    function getFilters() {
+      return {
+        fileNamePattern: fileNamePatternInput?.value ?? '',
+        title: titleInput?.value ?? '',
+        tags: tagsInput?.value ?? '',
+        fullText: fullTextInput?.value ?? ''
+      };
+    }
 
-    function renderResults(results) {
-      if (!resultsList) {
+    function hasAnyFilter(filters) {
+      return Boolean(
+        filters.fileNamePattern.trim() ||
+        filters.title.trim() ||
+        filters.tags.trim() ||
+        filters.fullText.trim()
+      );
+    }
+
+    function renderNoFilterState() {
+      if (!resultsMeta || !resultsList) {
+        return;
+      }
+
+      resultsMeta.textContent = 'Enter at least one filter to search.';
+      resultsList.innerHTML = '';
+    }
+
+    function renderResults(results, filters) {
+      if (!resultsList || !resultsMeta) {
         return;
       }
 
       resultsList.innerHTML = '';
 
       if (!results.length) {
+        resultsMeta.textContent = 'No results found.';
         const emptyItem = document.createElement('li');
-        emptyItem.textContent = 'No results';
+        emptyItem.className = 'result-path';
+        emptyItem.textContent = 'Try a broader query or remove one of the filters.';
         resultsList.appendChild(emptyItem);
         return;
       }
+
+      resultsMeta.textContent = results.length === 1 ? '1 result' : results.length + ' results';
 
       for (const result of results) {
         const item = document.createElement('li');
@@ -187,34 +240,34 @@ export function getWebviewHtml(): string {
 
         const name = document.createElement('div');
         name.className = 'result-name';
-        name.textContent = result.fileName;
+        name.innerHTML = highlightText(result.fileName, filters.fileNamePattern);
 
         const path = document.createElement('div');
         path.className = 'result-path';
-        path.textContent = result.filePath;
+        path.innerHTML = escapeHtml(result.filePath);
 
         const metadata = document.createElement('div');
         metadata.className = 'result-path';
         const metadataParts = [];
 
         if (result.title) {
-          metadataParts.push('Title: ' + result.title);
+          metadataParts.push('Title: ' + highlightText(result.title, filters.title));
         }
 
         if (result.tags) {
-          metadataParts.push('Tags: ' + result.tags);
+          metadataParts.push('Tags: ' + highlightText(result.tags, filters.tags));
         }
 
-        metadata.textContent = metadataParts.join(' | ');
+        metadata.innerHTML = metadataParts.join(' | ');
 
         const snippet = document.createElement('div');
         snippet.className = 'result-snippet';
-        snippet.textContent = result.snippet;
+        snippet.innerHTML = highlightText(result.snippet, filters.fullText);
 
         button.appendChild(name);
         button.appendChild(path);
 
-        if (metadata.textContent) {
+        if (metadata.innerHTML) {
           button.appendChild(metadata);
         }
 
@@ -222,6 +275,40 @@ export function getWebviewHtml(): string {
         item.appendChild(button);
         resultsList.appendChild(item);
       }
+    }
+
+    function highlightText(text, query) {
+      const normalizedQuery = (query ?? '').trim();
+
+      if (!normalizedQuery) {
+        return escapeHtml(text ?? '');
+      }
+
+      const regex = new RegExp('(' + escapeRegExp(normalizedQuery) + ')', 'ig');
+      const parts = String(text ?? '').split(regex);
+
+      return parts
+        .map((part, index) => {
+          if (index % 2 === 1) {
+            return '<mark>' + escapeHtml(part) + '</mark>';
+          }
+
+          return escapeHtml(part);
+        })
+        .join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^$()|[\]{}\\]/g, '\\$&');
     }
   </script>
 </body>
