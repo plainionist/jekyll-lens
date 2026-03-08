@@ -19,13 +19,16 @@ export function getWebviewHtml(): string {
     }
 
     .field {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 10px;
+      align-items: center;
       margin-bottom: 12px;
     }
 
     label {
-      display: block;
       font-weight: 600;
-      margin-bottom: 4px;
+      margin: 0;
       color: var(--vscode-foreground);
     }
 
@@ -71,12 +74,13 @@ export function getWebviewHtml(): string {
       box-sizing: border-box;
       display: block;
       width: 100%;
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--vscode-input-border);
       border-radius: 6px;
       padding: 10px;
       cursor: pointer;
       background: var(--vscode-editorWidget-background);
       color: var(--vscode-foreground);
+      box-shadow: 0 0 0 1px var(--vscode-contrastBorder, transparent);
     }
 
     .result-button:hover {
@@ -108,6 +112,13 @@ export function getWebviewHtml(): string {
       background: var(--vscode-editor-findMatchHighlightBackground);
       color: var(--vscode-editor-findMatchHighlightForeground);
       padding: 0 1px;
+    }
+
+    @media (max-width: 640px) {
+      .field {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
     }
   </style>
 </head>
