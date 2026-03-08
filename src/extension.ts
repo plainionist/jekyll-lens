@@ -66,6 +66,11 @@ function getWebviewHtml(): string {
     <h1>Markdown Search</h1>
 
     <div class="field">
+      <label for="fileNamePattern">File Name Pattern</label>
+      <input id="fileNamePattern" type="text" />
+    </div>
+
+    <div class="field">
       <label for="title">Title</label>
       <input id="title" type="text" />
     </div>
@@ -90,7 +95,17 @@ function getWebviewHtml(): string {
   <script>
     const searchButton = document.getElementById('searchButton');
     searchButton?.addEventListener('click', () => {
-      console.log('Search clicked');
+      const fileNamePattern = document.getElementById('fileNamePattern')?.value ?? '';
+      const title = document.getElementById('title')?.value ?? '';
+      const tags = document.getElementById('tags')?.value ?? '';
+      const fullText = document.getElementById('fullText')?.value ?? '';
+
+      console.log('Search clicked', {
+        fileNamePattern,
+        title,
+        tags,
+        fullText
+      });
     });
   </script>
 </body>
