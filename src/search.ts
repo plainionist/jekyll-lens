@@ -3,13 +3,13 @@ import { parseFrontMatter } from './parsing/frontMatter';
 import { SearchFilters, SearchResult } from './types';
 
 export async function searchMarkdownFiles(filters: SearchFilters): Promise<SearchResult[]> {
-  const fileNamePatternLower = filters.fileNamePattern.toLowerCase();
+  const filePathPatternLower = filters.filePathPattern.toLowerCase();
   const titleLower = filters.title.toLowerCase();
   const tagsLower = filters.tags.toLowerCase();
   const fullTextLower = filters.fullText.toLowerCase();
   const requiresMarkdownFilters = Boolean(titleLower || tagsLower || fullTextLower);
 
-  if (!fileNamePatternLower && !titleLower && !tagsLower && !fullTextLower) {
+  if (!filePathPatternLower && !titleLower && !tagsLower && !fullTextLower) {
     return [];
   }
 
@@ -20,10 +20,11 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
   const results: SearchResult[] = [];
 
   for (const fileUri of candidateFiles) {
+    const relativePath = vscode.workspace.asRelativePath(fileUri, false);
     const fileName = getFileName(fileUri);
     const isMarkdown = isMarkdownFile(fileUri);
 
-    if (fileNamePatternLower && !fileName.toLowerCase().includes(fileNamePatternLower)) {
+    if (filePathPatternLower && !relativePath.toLowerCase().includes(filePathPatternLower)) {
       continue;
     }
 
@@ -33,12 +34,12 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
 
     if (!isMarkdown) {
       results.push({
-        filePath: vscode.workspace.asRelativePath(fileUri, false),
+        filePath: relativePath,
         fileUri: fileUri.toString(),
         fileName,
         title: '',
         tags: '',
-        snippet: 'File name match'
+        snippet: 'File path match'
       });
       continue;
     }
@@ -66,7 +67,7 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
       : getFallbackSnippet(parsed.body);
 
     results.push({
-      filePath: vscode.workspace.asRelativePath(fileUri, false),
+      filePath: relativePath,
       fileUri: fileUri.toString(),
       fileName,
       title: parsed.title,
@@ -100,7 +101,7 @@ function scoreResult(result: SearchResult, filters: SearchFilters): number {
     score += 30;
   }
 
-  if (filters.fileNamePattern && result.fileName.toLowerCase().includes(filters.fileNamePattern.toLowerCase())) {
+  if (filters.filePathPattern && result.filePath.toLowerCase().includes(filters.filePathPattern.toLowerCase())) {
     score += 20;
   }
 

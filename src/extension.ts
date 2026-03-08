@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 function normalizeFilters(payload?: Partial<SearchFilters>): SearchFilters {
   return {
-    fileNamePattern: payload?.fileNamePattern?.trim() ?? '',
+    filePathPattern: payload?.filePathPattern?.trim() ?? '',
     title: payload?.title?.trim() ?? '',
     tags: payload?.tags?.trim() ?? '',
     fullText: payload?.fullText?.trim() ?? ''

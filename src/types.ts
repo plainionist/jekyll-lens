@@ -1,5 +1,5 @@
 export type SearchFilters = {
-  fileNamePattern: string;
+  filePathPattern: string;
   title: string;
   tags: string;
   fullText: string;
