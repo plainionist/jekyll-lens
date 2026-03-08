@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 type SearchRequestMessage = {
   type: 'search';
   payload?: {
+    fileNamePattern?: string;
     fullText?: string;
   };
 };
@@ -36,8 +37,9 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const query = message.payload?.fullText?.trim() ?? '';
-      const results = await searchMarkdownByFullText(query);
+      const fileNamePattern = message.payload?.fileNamePattern?.trim() ?? '';
+      const fullText = message.payload?.fullText?.trim() ?? '';
+      const results = await searchMarkdownFiles(fileNamePattern, fullText);
       const response: SearchResultsMessage = {
         type: 'searchResults',
         payload: results
@@ -52,29 +54,45 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(disposable);
 }
 
-async function searchMarkdownByFullText(fullText: string): Promise<SearchResult[]> {
-  if (!fullText) {
+async function searchMarkdownFiles(fileNamePattern: string, fullText: string): Promise<SearchResult[]> {
+  const fileNamePatternLower = fileNamePattern.toLowerCase();
+  const fullTextLower = fullText.toLowerCase();
+
+  if (!fileNamePatternLower && !fullTextLower) {
     return [];
   }
 
   const markdownFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-  const queryLower = fullText.toLowerCase();
   const results: SearchResult[] = [];
 
   for (const fileUri of markdownFiles) {
+    const fileName = getFileName(fileUri);
+    const fileNameLower = fileName.toLowerCase();
+
+    if (fileNamePatternLower && !fileNameLower.includes(fileNamePatternLower)) {
+      continue;
+    }
+
     const bytes = await vscode.workspace.fs.readFile(fileUri);
     const content = new TextDecoder('utf-8').decode(bytes);
-    const contentLower = content.toLowerCase();
-    const matchIndex = contentLower.indexOf(queryLower);
 
-    if (matchIndex === -1) {
-      continue;
+    let snippet = getFallbackSnippet(content);
+
+    if (fullTextLower) {
+      const contentLower = content.toLowerCase();
+      const matchIndex = contentLower.indexOf(fullTextLower);
+
+      if (matchIndex === -1) {
+        continue;
+      }
+
+      snippet = createSnippet(content, matchIndex, fullTextLower.length);
     }
 
     results.push({
       filePath: vscode.workspace.asRelativePath(fileUri, false),
-      fileName: getFileName(fileUri),
-      snippet: createSnippet(content, matchIndex, queryLower.length)
+      fileName,
+      snippet
     });
   }
 
@@ -95,6 +113,19 @@ function createSnippet(content: string, matchIndex: number, matchLength: number)
   const prefix = start > 0 ? '...' : '';
   const suffix = end < content.length ? '...' : '';
   return `${prefix}${snippet}${suffix}`;
+}
+
+function getFallbackSnippet(content: string): string {
+  const firstNonEmptyLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  if (firstNonEmptyLine) {
+    return firstNonEmptyLine.slice(0, 100);
+  }
+
+  return content.replace(/\s+/g, ' ').trim().slice(0, 100);
 }
 
 function getWebviewHtml(): string {
@@ -205,6 +236,7 @@ function getWebviewHtml(): string {
   <script>
     const vscodeApi = acquireVsCodeApi();
     const searchButton = document.getElementById('searchButton');
+    const fileNamePatternInput = document.getElementById('fileNamePattern');
     const fullTextInput = document.getElementById('fullText');
     const resultsList = document.getElementById('resultsList');
 
@@ -219,16 +251,18 @@ function getWebviewHtml(): string {
     });
 
     searchButton?.addEventListener('click', () => {
+      const fileNamePattern = fileNamePatternInput?.value ?? '';
       const fullText = fullTextInput?.value ?? '';
 
       vscodeApi.postMessage({
         type: 'search',
         payload: {
+          fileNamePattern,
           fullText
         }
       });
 
-      console.log('Search clicked', { fullText });
+      console.log('Search clicked', { fileNamePattern, fullText });
     });
 
     function renderResults(results) {
