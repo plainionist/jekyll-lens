@@ -96,8 +96,8 @@ export function getWebviewHtml(): string {
     <h1>Markdown Search</h1>
 
     <div class="field">
-      <label for="fileNamePattern">File Name Pattern</label>
-      <input id="fileNamePattern" type="text" />
+      <label for="fullText">Full Text</label>
+      <input id="fullText" type="text" />
     </div>
 
     <div class="field">
@@ -106,13 +106,13 @@ export function getWebviewHtml(): string {
     </div>
 
     <div class="field">
-      <label for="tags">Tags</label>
+      <label for="tags">Tag</label>
       <input id="tags" type="text" />
     </div>
 
     <div class="field">
-      <label for="fullText">Full Text</label>
-      <input id="fullText" type="text" />
+      <label for="fileNamePattern">File Name Pattern</label>
+      <input id="fileNamePattern" type="text" />
     </div>
 
     <section class="results">
