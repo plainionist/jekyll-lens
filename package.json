@@ -1,0 +1,35 @@
+{
+  "name": "markdown-search-extension",
+  "displayName": "Markdown Search",
+  "description": "A minimal VS Code extension foundation for a future markdown search tool.",
+  "version": "0.0.1",
+  "publisher": "plainionist",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:markdownSearch.hello"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownSearch.hello",
+        "title": "Hello from Markdown Search"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.6.2"
+  }
+}
