@@ -11,14 +11,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:markdownSearch.openSearch"
+    "onCommand:jekyllLens.openSearch"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "markdownSearch.openSearch",
-        "title": "Markdown Search: Open Search"
+        "command": "jekyllLens.openSearch",
+        "title": "Jekyll Lens: Open Search"
       }
     ]
   },

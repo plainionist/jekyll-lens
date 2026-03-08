@@ -4,9 +4,9 @@ import { SearchFilters, SearchResultsMessage, WebviewRequestMessage } from './ty
 import { getWebviewHtml } from './webview/html';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const disposable = vscode.commands.registerCommand('markdownSearch.openSearch', () => {
+  const disposable = vscode.commands.registerCommand('jekyllLens.openSearch', () => {
     const panel = vscode.window.createWebviewPanel(
-      'markdownSearch',
+      'jekyllLens',
       'Markdown Search',
       vscode.ViewColumn.Active,
       {
