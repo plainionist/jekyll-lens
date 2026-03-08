@@ -48,6 +48,7 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
 
     results.push({
       filePath: vscode.workspace.asRelativePath(fileUri, false),
+      fileUri: fileUri.toString(),
       fileName,
       title: parsed.title,
       tags: parsed.tags,

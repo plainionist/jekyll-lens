@@ -52,8 +52,21 @@ export function getWebviewHtml(): string {
     .result-item {
       border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 10px;
+      padding: 0;
       margin-bottom: 10px;
+    }
+
+    .result-button {
+      all: unset;
+      box-sizing: border-box;
+      display: block;
+      width: 100%;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .result-button:hover {
+      background: #f5f5f5;
     }
 
     .result-name {
@@ -159,6 +172,19 @@ export function getWebviewHtml(): string {
         const item = document.createElement('li');
         item.className = 'result-item';
 
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'result-button';
+        button.addEventListener('click', () => {
+          vscodeApi.postMessage({
+            type: 'openFile',
+            payload: {
+              filePath: result.filePath,
+              fileUri: result.fileUri
+            }
+          });
+        });
+
         const name = document.createElement('div');
         name.className = 'result-name';
         name.textContent = result.fileName;
@@ -185,14 +211,15 @@ export function getWebviewHtml(): string {
         snippet.className = 'result-snippet';
         snippet.textContent = result.snippet;
 
-        item.appendChild(name);
-        item.appendChild(path);
+        button.appendChild(name);
+        button.appendChild(path);
 
         if (metadata.textContent) {
-          item.appendChild(metadata);
+          button.appendChild(metadata);
         }
 
-        item.appendChild(snippet);
+        button.appendChild(snippet);
+        item.appendChild(button);
         resultsList.appendChild(item);
       }
     }

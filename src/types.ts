@@ -10,8 +10,19 @@ export type SearchRequestMessage = {
   payload?: Partial<SearchFilters>;
 };
 
+export type OpenFileRequestMessage = {
+  type: 'openFile';
+  payload?: {
+    filePath?: string;
+    fileUri?: string;
+  };
+};
+
+export type WebviewRequestMessage = SearchRequestMessage | OpenFileRequestMessage;
+
 export type SearchResult = {
   filePath: string;
+  fileUri: string;
   fileName: string;
   title: string;
   tags: string;
