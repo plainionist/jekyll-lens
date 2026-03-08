@@ -1,18 +1,100 @@
 import * as vscode from 'vscode';
 
+type SearchRequestMessage = {
+  type: 'search';
+  payload?: {
+    fullText?: string;
+  };
+};
+
+type SearchResult = {
+  filePath: string;
+  fileName: string;
+  snippet: string;
+};
+
+type SearchResultsMessage = {
+  type: 'searchResults';
+  payload: SearchResult[];
+};
+
 export function activate(context: vscode.ExtensionContext): void {
   const disposable = vscode.commands.registerCommand('markdownSearch.openSearch', () => {
     const panel = vscode.window.createWebviewPanel(
       'markdownSearch',
       'Markdown Search',
       vscode.ViewColumn.Active,
-      {}
+      {
+        enableScripts: true
+      }
     );
 
     panel.webview.html = getWebviewHtml();
+
+    const messageListener = panel.webview.onDidReceiveMessage(async (message: SearchRequestMessage) => {
+      if (message.type !== 'search') {
+        return;
+      }
+
+      const query = message.payload?.fullText?.trim() ?? '';
+      const results = await searchMarkdownByFullText(query);
+      const response: SearchResultsMessage = {
+        type: 'searchResults',
+        payload: results
+      };
+
+      await panel.webview.postMessage(response);
+    });
+
+    context.subscriptions.push(messageListener);
   });
 
   context.subscriptions.push(disposable);
+}
+
+async function searchMarkdownByFullText(fullText: string): Promise<SearchResult[]> {
+  if (!fullText) {
+    return [];
+  }
+
+  const markdownFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+  const queryLower = fullText.toLowerCase();
+  const results: SearchResult[] = [];
+
+  for (const fileUri of markdownFiles) {
+    const bytes = await vscode.workspace.fs.readFile(fileUri);
+    const content = new TextDecoder('utf-8').decode(bytes);
+    const contentLower = content.toLowerCase();
+    const matchIndex = contentLower.indexOf(queryLower);
+
+    if (matchIndex === -1) {
+      continue;
+    }
+
+    results.push({
+      filePath: vscode.workspace.asRelativePath(fileUri, false),
+      fileName: getFileName(fileUri),
+      snippet: createSnippet(content, matchIndex, queryLower.length)
+    });
+  }
+
+  return results;
+}
+
+function getFileName(fileUri: vscode.Uri): string {
+  const normalizedPath = fileUri.path.replace(/\\/g, '/');
+  const segments = normalizedPath.split('/');
+  return segments[segments.length - 1] || normalizedPath;
+}
+
+function createSnippet(content: string, matchIndex: number, matchLength: number): string {
+  const radius = 50;
+  const start = Math.max(0, matchIndex - radius);
+  const end = Math.min(content.length, matchIndex + matchLength + radius);
+  const snippet = content.slice(start, end).replace(/\s+/g, ' ').trim();
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < content.length ? '...' : '';
+  return `${prefix}${snippet}${suffix}`;
 }
 
 function getWebviewHtml(): string {
@@ -59,6 +141,33 @@ function getWebviewHtml(): string {
       padding-top: 12px;
       border-top: 1px solid #ccc;
     }
+
+    #resultsList {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+    }
+
+    .result-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .result-name {
+      font-weight: 600;
+    }
+
+    .result-path {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 2px;
+    }
+
+    .result-snippet {
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -89,24 +198,75 @@ function getWebviewHtml(): string {
 
     <section class="results">
       <h2>Results</h2>
+      <ul id="resultsList"></ul>
     </section>
   </div>
 
   <script>
+    const vscodeApi = acquireVsCodeApi();
     const searchButton = document.getElementById('searchButton');
-    searchButton?.addEventListener('click', () => {
-      const fileNamePattern = document.getElementById('fileNamePattern')?.value ?? '';
-      const title = document.getElementById('title')?.value ?? '';
-      const tags = document.getElementById('tags')?.value ?? '';
-      const fullText = document.getElementById('fullText')?.value ?? '';
+    const fullTextInput = document.getElementById('fullText');
+    const resultsList = document.getElementById('resultsList');
 
-      console.log('Search clicked', {
-        fileNamePattern,
-        title,
-        tags,
-        fullText
-      });
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+
+      if (message?.type !== 'searchResults') {
+        return;
+      }
+
+      renderResults(message.payload ?? []);
     });
+
+    searchButton?.addEventListener('click', () => {
+      const fullText = fullTextInput?.value ?? '';
+
+      vscodeApi.postMessage({
+        type: 'search',
+        payload: {
+          fullText
+        }
+      });
+
+      console.log('Search clicked', { fullText });
+    });
+
+    function renderResults(results) {
+      if (!resultsList) {
+        return;
+      }
+
+      resultsList.innerHTML = '';
+
+      if (!results.length) {
+        const emptyItem = document.createElement('li');
+        emptyItem.textContent = 'No results';
+        resultsList.appendChild(emptyItem);
+        return;
+      }
+
+      for (const result of results) {
+        const item = document.createElement('li');
+        item.className = 'result-item';
+
+        const name = document.createElement('div');
+        name.className = 'result-name';
+        name.textContent = result.fileName;
+
+        const path = document.createElement('div');
+        path.className = 'result-path';
+        path.textContent = result.filePath;
+
+        const snippet = document.createElement('div');
+        snippet.className = 'result-snippet';
+        snippet.textContent = result.snippet;
+
+        item.appendChild(name);
+        item.appendChild(path);
+        item.appendChild(snippet);
+        resultsList.appendChild(item);
+      }
+    }
   </script>
 </body>
 </html>`;
