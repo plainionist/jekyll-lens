@@ -4,6 +4,8 @@ type SearchRequestMessage = {
   type: 'search';
   payload?: {
     fileNamePattern?: string;
+    title?: string;
+    tags?: string;
     fullText?: string;
   };
 };
@@ -11,7 +13,15 @@ type SearchRequestMessage = {
 type SearchResult = {
   filePath: string;
   fileName: string;
+  title: string;
+  tags: string;
   snippet: string;
+};
+
+type ParsedMarkdown = {
+  title: string;
+  tags: string;
+  body: string;
 };
 
 type SearchResultsMessage = {
@@ -38,8 +48,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const fileNamePattern = message.payload?.fileNamePattern?.trim() ?? '';
+      const title = message.payload?.title?.trim() ?? '';
+      const tags = message.payload?.tags?.trim() ?? '';
       const fullText = message.payload?.fullText?.trim() ?? '';
-      const results = await searchMarkdownFiles(fileNamePattern, fullText);
+      const results = await searchMarkdownFiles(fileNamePattern, title, tags, fullText);
       const response: SearchResultsMessage = {
         type: 'searchResults',
         payload: results
@@ -54,11 +66,18 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(disposable);
 }
 
-async function searchMarkdownFiles(fileNamePattern: string, fullText: string): Promise<SearchResult[]> {
+async function searchMarkdownFiles(
+  fileNamePattern: string,
+  title: string,
+  tags: string,
+  fullText: string
+): Promise<SearchResult[]> {
   const fileNamePatternLower = fileNamePattern.toLowerCase();
+  const titleLower = title.toLowerCase();
+  const tagsLower = tags.toLowerCase();
   const fullTextLower = fullText.toLowerCase();
 
-  if (!fileNamePatternLower && !fullTextLower) {
+  if (!fileNamePatternLower && !titleLower && !tagsLower && !fullTextLower) {
     return [];
   }
 
@@ -75,8 +94,17 @@ async function searchMarkdownFiles(fileNamePattern: string, fullText: string): P
 
     const bytes = await vscode.workspace.fs.readFile(fileUri);
     const content = new TextDecoder('utf-8').decode(bytes);
+    const parsed = parseFrontMatter(content);
 
-    let snippet = getFallbackSnippet(content);
+    if (titleLower && !parsed.title.toLowerCase().includes(titleLower)) {
+      continue;
+    }
+
+    if (tagsLower && !parsed.tags.toLowerCase().includes(tagsLower)) {
+      continue;
+    }
+
+    let snippet = getFallbackSnippet(parsed.body);
 
     if (fullTextLower) {
       const contentLower = content.toLowerCase();
@@ -92,6 +120,8 @@ async function searchMarkdownFiles(fileNamePattern: string, fullText: string): P
     results.push({
       filePath: vscode.workspace.asRelativePath(fileUri, false),
       fileName,
+      title: parsed.title,
+      tags: parsed.tags,
       snippet
     });
   }
@@ -113,6 +143,65 @@ function createSnippet(content: string, matchIndex: number, matchLength: number)
   const prefix = start > 0 ? '...' : '';
   const suffix = end < content.length ? '...' : '';
   return `${prefix}${snippet}${suffix}`;
+}
+
+function parseFrontMatter(content: string): ParsedMarkdown {
+  const normalized = content.replace(/\r\n/g, '\n');
+
+  if (!normalized.startsWith('---\n')) {
+    return {
+      title: '',
+      tags: '',
+      body: content
+    };
+  }
+
+  const lines = normalized.split('\n');
+  let closingIndex = -1;
+
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i].trim() === '---') {
+      closingIndex = i;
+      break;
+    }
+  }
+
+  if (closingIndex === -1) {
+    return {
+      title: '',
+      tags: '',
+      body: content
+    };
+  }
+
+  let title = '';
+  let tags = '';
+
+  for (let i = 1; i < closingIndex; i += 1) {
+    const line = lines[i];
+    const separatorIndex = line.indexOf(':');
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim().toLowerCase();
+    const value = line.slice(separatorIndex + 1).trim();
+
+    if (key === 'title') {
+      title = value;
+    } else if (key === 'tags') {
+      tags = value;
+    }
+  }
+
+  const body = lines.slice(closingIndex + 1).join('\n');
+
+  return {
+    title,
+    tags,
+    body
+  };
 }
 
 function getFallbackSnippet(content: string): string {
@@ -237,6 +326,8 @@ function getWebviewHtml(): string {
     const vscodeApi = acquireVsCodeApi();
     const searchButton = document.getElementById('searchButton');
     const fileNamePatternInput = document.getElementById('fileNamePattern');
+    const titleInput = document.getElementById('title');
+    const tagsInput = document.getElementById('tags');
     const fullTextInput = document.getElementById('fullText');
     const resultsList = document.getElementById('resultsList');
 
@@ -252,17 +343,21 @@ function getWebviewHtml(): string {
 
     searchButton?.addEventListener('click', () => {
       const fileNamePattern = fileNamePatternInput?.value ?? '';
+      const title = titleInput?.value ?? '';
+      const tags = tagsInput?.value ?? '';
       const fullText = fullTextInput?.value ?? '';
 
       vscodeApi.postMessage({
         type: 'search',
         payload: {
           fileNamePattern,
+          title,
+          tags,
           fullText
         }
       });
 
-      console.log('Search clicked', { fileNamePattern, fullText });
+      console.log('Search clicked', { fileNamePattern, title, tags, fullText });
     });
 
     function renderResults(results) {
@@ -291,12 +386,31 @@ function getWebviewHtml(): string {
         path.className = 'result-path';
         path.textContent = result.filePath;
 
+        const metadata = document.createElement('div');
+        metadata.className = 'result-path';
+        const metadataParts = [];
+
+        if (result.title) {
+          metadataParts.push('Title: ' + result.title);
+        }
+
+        if (result.tags) {
+          metadataParts.push('Tags: ' + result.tags);
+        }
+
+        metadata.textContent = metadataParts.join(' | ');
+
         const snippet = document.createElement('div');
         snippet.className = 'result-snippet';
         snippet.textContent = result.snippet;
 
         item.appendChild(name);
         item.appendChild(path);
+
+        if (metadata.textContent) {
+          item.appendChild(metadata);
+        }
+
         item.appendChild(snippet);
         resultsList.appendChild(item);
       }
