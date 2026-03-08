@@ -11,14 +11,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:markdownSearch.hello"
+    "onCommand:markdownSearch.openSearch"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "markdownSearch.hello",
-        "title": "Hello from Markdown Search"
+        "command": "markdownSearch.openSearch",
+        "title": "Markdown Search: Open Search"
       }
     ]
   },
