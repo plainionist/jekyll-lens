@@ -101,6 +101,7 @@ export function getWebviewHtml(): string {
 
     .result-snippet {
       margin-top: 8px;
+      white-space: pre-wrap;
     }
 
     mark {

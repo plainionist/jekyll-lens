@@ -62,7 +62,7 @@ export async function searchMarkdownFiles(filters: SearchFilters): Promise<Searc
     }
 
     const snippet = fullTextLower && fullTextMatchIndex >= 0
-      ? createMatchSnippet(content, fullTextMatchIndex, fullTextLower.length)
+      ? createMatchSnippet(content, fullTextMatchIndex)
       : getFallbackSnippet(parsed.body);
 
     results.push({
@@ -121,14 +121,30 @@ function isMarkdownFile(fileUri: vscode.Uri): boolean {
   return fileUri.path.toLowerCase().endsWith('.md');
 }
 
-function createMatchSnippet(content: string, matchIndex: number, matchLength: number): string {
-  const radius = 60;
-  const start = Math.max(0, matchIndex - radius);
-  const end = Math.min(content.length, matchIndex + matchLength + radius);
-  const snippet = compactText(content.slice(start, end));
-  const prefix = start > 0 ? '...' : '';
-  const suffix = end < content.length ? '...' : '';
-  return `${prefix}${snippet}${suffix}`;
+function createMatchSnippet(content: string, matchIndex: number): string {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const matchLineIndex = getLineIndexFromOffset(normalized, matchIndex);
+  const startLine = Math.max(0, matchLineIndex - 2);
+  const endLine = Math.min(lines.length - 1, matchLineIndex + 2);
+  const visibleLines = lines.slice(startLine, endLine + 1).map((line) => compactText(line));
+  const hasLeadingLines = startLine > 0;
+  const hasTrailingLines = endLine < lines.length - 1;
+  const prefix = hasLeadingLines ? '...\n' : '';
+  const suffix = hasTrailingLines ? '\n...' : '';
+  return `${prefix}${visibleLines.join('\n')}${suffix}`;
+}
+
+function getLineIndexFromOffset(content: string, offset: number): number {
+  let lineIndex = 0;
+
+  for (let i = 0; i < offset && i < content.length; i += 1) {
+    if (content[i] === '\n') {
+      lineIndex += 1;
+    }
+  }
+
+  return lineIndex;
 }
 
 function getFallbackSnippet(content: string): string {

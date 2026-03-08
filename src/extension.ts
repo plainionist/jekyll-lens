@@ -10,7 +10,8 @@ export function activate(context: vscode.ExtensionContext): void {
       'Jekyll Lens',
       vscode.ViewColumn.Active,
       {
-        enableScripts: true
+        enableScripts: true,
+        retainContextWhenHidden: true
       }
     );
 
@@ -61,8 +62,15 @@ async function openResultFile(filePath?: string, fileUri?: string): Promise<void
       return;
     }
 
-    const document = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(document);
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      return;
+    } catch {
+      // Binary files (e.g. images) should be opened with the default editor.
+      await vscode.commands.executeCommand('vscode.open', uri);
+      return;
+    }
   } catch {
     vscode.window.showErrorMessage(`Unable to open file: ${filePath ?? fileUri ?? ''}`);
   }
