@@ -1,7 +1,7 @@
 {
-  "name": "markdown-search-extension",
-  "displayName": "Markdown Search",
-  "description": "A minimal VS Code extension foundation for a future markdown search tool.",
+  "name": "jekyll-lens",
+  "displayName": "Jekyll Lens",
+  "description": "Context-aware search for Jekyll style documents in Visual Studio Code.",
   "version": "0.1.0",
   "publisher": "plainionist",
   "engines": {
@@ -18,7 +18,7 @@
     "commands": [
       {
         "command": "jekyllLens.openSearch",
-        "title": "Jekyll Lens: Open Search"
+        "title": "Open Jekyll Lens"
       }
     ]
   },

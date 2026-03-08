@@ -4,12 +4,14 @@ export function getWebviewHtml(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown Search</title>
+     <title>Jekyll Lens</title>
   <style>
     body {
       font-family: sans-serif;
       margin: 16px;
       line-height: 1.4;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
     }
 
     .container {
@@ -24,22 +26,32 @@ export function getWebviewHtml(): string {
       display: block;
       font-weight: 600;
       margin-bottom: 4px;
+      color: var(--vscode-foreground);
     }
 
     input {
       box-sizing: border-box;
       width: 100%;
       padding: 8px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+    }
+
+    input:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 0;
     }
 
     .results {
       margin-top: 20px;
       padding-top: 12px;
-      border-top: 1px solid #ccc;
+      border-top: 1px solid var(--vscode-panel-border);
     }
 
     .results-meta {
-      color: #666;
+      color: var(--vscode-descriptionForeground);
       margin-bottom: 10px;
       font-size: 0.95em;
     }
@@ -59,16 +71,22 @@ export function getWebviewHtml(): string {
       box-sizing: border-box;
       display: block;
       width: 100%;
-      border: 1px solid #ddd;
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       padding: 10px;
       cursor: pointer;
-      background: #fff;
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-foreground);
     }
 
     .result-button:hover {
-      background: #f7f7f7;
-      border-color: #bbb;
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .result-button:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 0;
     }
 
     .result-name {
@@ -76,7 +94,7 @@ export function getWebviewHtml(): string {
     }
 
     .result-path {
-      color: #666;
+      color: var(--vscode-descriptionForeground);
       font-size: 0.9em;
       margin-top: 2px;
     }
@@ -86,14 +104,14 @@ export function getWebviewHtml(): string {
     }
 
     mark {
-      background: #ffe28a;
+      background: var(--vscode-editor-findMatchHighlightBackground);
+      color: var(--vscode-editor-findMatchHighlightForeground);
       padding: 0 1px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Markdown Search</h1>
 
     <div class="field">
       <label for="fullText">Full Text</label>
