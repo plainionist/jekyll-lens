@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { searchMarkdownFiles } from './search';
+import { searchFiles } from './search';
 import {
   SearchFilters,
   SearchRequestMessage,
@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
         latestRequestId = Math.max(latestRequestId, message.requestId);
         const requestId = message.requestId;
         const filters = normalizeFilters(message.payload);
-        const results = await searchMarkdownFiles(filters);
+        const results = await searchFiles(filters);
 
         if (requestId !== latestRequestId) {
           return;

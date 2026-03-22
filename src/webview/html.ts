@@ -134,12 +134,12 @@ export function getWebviewHtml(): string {
     </div>
 
     <div class="field">
-      <label for="title">Title</label>
+      <label for="title">Title (Markdown)</label>
       <input id="title" type="text" />
     </div>
 
     <div class="field">
-      <label for="tags">Tag</label>
+      <label for="tags">Tag (Markdown)</label>
       <input id="tags" type="text" />
     </div>
 
@@ -149,7 +149,7 @@ export function getWebviewHtml(): string {
     </div>
 
     <section class="results">
-      <div id="resultsMeta" class="results-meta">Enter at least one filter to search.</div>
+      <div id="resultsMeta" class="results-meta">Full text searches any text file. Title and tag search only apply to Markdown files.</div>
       <ul id="resultsList"></ul>
     </section>
   </div>
@@ -241,7 +241,7 @@ export function getWebviewHtml(): string {
         return;
       }
 
-      resultsMeta.textContent = 'Enter at least one filter to search.';
+      resultsMeta.textContent = 'Full text searches any text file. Title and tag search only apply to Markdown files.';
       resultsList.innerHTML = '';
     }
 

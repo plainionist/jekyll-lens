@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { decodeSearchableText, isMarkdownFile } from './fileTypes';
 import { parseFrontMatter } from './parsing/frontMatter';
 import { NormalizedSearchFilters, SearchFilters, SearchResult } from './types';
 
@@ -11,7 +12,7 @@ const SEARCH_WEIGHTS = {
   fullText: 10
 } as const;
 
-export async function searchMarkdownFiles(filters: SearchFilters): Promise<SearchResult[]> {
+export async function searchFiles(filters: SearchFilters): Promise<SearchResult[]> {
   const normalizedFilters = normalizeFilters(filters);
 
   if (!hasAnyFilter(normalizedFilters)) {
@@ -48,12 +49,12 @@ function hasAnyFilter(filters: NormalizedSearchFilters): boolean {
   return Boolean(filters.filePathPattern || filters.title || filters.tags || filters.fullText);
 }
 
-function requiresMarkdownFilters(filters: NormalizedSearchFilters): boolean {
-  return Boolean(filters.title || filters.tags || filters.fullText);
+function requiresMarkdownMetadataFilters(filters: NormalizedSearchFilters): boolean {
+  return Boolean(filters.title || filters.tags);
 }
 
 async function findCandidateFiles(filters: NormalizedSearchFilters): Promise<vscode.Uri[]> {
-  if (requiresMarkdownFilters(filters)) {
+  if (requiresMarkdownMetadataFilters(filters)) {
     return vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
   }
 
@@ -89,24 +90,57 @@ async function evaluateCandidate(fileUri: vscode.Uri, filters: NormalizedSearchF
     return undefined;
   }
 
-  if (requiresMarkdownFilters(filters) && !markdown) {
+  if (requiresMarkdownMetadataFilters(filters) && !markdown) {
     return undefined;
   }
 
-  if (!markdown) {
+  if (!filters.fullText) {
+    if (!markdown) {
+      return {
+        filePath: relativePath,
+        fileUri: fileUri.toString(),
+        fileName,
+        title: '',
+        tags: '',
+        snippet: 'File path match'
+      };
+    }
+
+    const bytes = await vscode.workspace.fs.readFile(fileUri);
+    const content = decodeSearchableText(bytes);
+
+    if (content === undefined) {
+      return undefined;
+    }
+
+    const parsed = parseFrontMatter(content);
+
+    if (filters.title && !parsed.title.toLowerCase().includes(filters.title)) {
+      return undefined;
+    }
+
+    if (filters.tags && !parsed.tags.toLowerCase().includes(filters.tags)) {
+      return undefined;
+    }
+
     return {
       filePath: relativePath,
       fileUri: fileUri.toString(),
       fileName,
-      title: '',
-      tags: '',
-      snippet: 'File path match'
+      title: parsed.title,
+      tags: parsed.tags,
+      snippet: getFallbackSnippet(parsed.body)
     };
   }
 
   const bytes = await vscode.workspace.fs.readFile(fileUri);
-  const content = new TextDecoder('utf-8').decode(bytes);
-  const parsed = parseFrontMatter(content);
+  const content = decodeSearchableText(bytes);
+
+  if (content === undefined) {
+    return undefined;
+  }
+
+  const parsed = markdown ? parseFrontMatter(content) : { title: '', tags: '', body: content };
 
   if (filters.title && !parsed.title.toLowerCase().includes(filters.title)) {
     return undefined;
@@ -162,10 +196,6 @@ function getFileName(fileUri: vscode.Uri): string {
   const normalizedPath = fileUri.path.replace(/\\/g, '/');
   const segments = normalizedPath.split('/');
   return segments[segments.length - 1] || normalizedPath;
-}
-
-function isMarkdownFile(fileUri: vscode.Uri): boolean {
-  return fileUri.path.toLowerCase().endsWith('.md');
 }
 
 function createMatchSnippet(content: string, matchIndex: number): string {
